@@ -9,13 +9,11 @@ from fastapi import Request
 from starlette.routing import request_response
 from fastapi.responses import FileResponse
 
+u2net_model_path = "/auxs/u2net.onnx"
+
 app = FastAPI()
 
-origins = [
-    "http://localhost",
-    "http://localhost:8080",
-    # Adicione outras origens permitidas, se necessário
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +24,7 @@ app.add_middleware(
 )
 
 def removeBackground(image_data):
-    img_removed = remove(image_data)
+    img_removed = remove(image_data, u2net_model_path)
     image_removed_filename = str(uuid.uuid4()) + '.jpg'
     image_removed_path = os.path.join('out', image_removed_filename)
     with open(image_removed_path, 'wb') as f:
@@ -55,3 +53,8 @@ async def process_image(request: Request, image: UploadFile = File(...)):
 @app.get('/output/{path:path}')
 def output_image(path):
     return FileResponse(os.path.join('in', path), media_type='image/jpeg')
+
+@app.get('/list-files')
+def list_files():
+    files = os.listdir('out')
+    return {'files': files}
