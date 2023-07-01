@@ -56,5 +56,8 @@ def output_image(path):
 
 @app.get('/list-files')
 def list_files():
-    files = os.listdir('out')
+    output_directory = 'out'
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
+    files = os.listdir(output_directory)
     return {'files': files}
