@@ -1,27 +1,57 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, File, UploadFile
+from PIL import Image
+import io
+import os
+import uuid
+from rembg import remove
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Request
+from starlette.routing import request_response
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-class Msg(BaseModel):
-    msg: str
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    # Adicione outras origens permitidas, se necessário
+]
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT"],
+    allow_headers=["*"],
+)
 
-@app.get("/")
-async def root():
-    return {"message": "Hello World. Welcome to FastAPI!"}
+def removeBackground(image_data):
+    img_removed = remove(image_data)
+    image_removed_filename = str(uuid.uuid4()) + '.jpg'
+    image_removed_path = os.path.join('out', image_removed_filename)
+    with open(image_removed_path, 'wb') as f:
+        f.write(img_removed)
 
+    return image_removed_path
 
-@app.get("/path")
-async def demo_get():
-    return {"message": "This is /path endpoint, use a post request to transform the text to uppercase"}
+@app.get('/')
+def home():
+    return {"message": "Hello, World!"}
 
+@app.put('/process-image')
+async def process_image(request: Request, image: UploadFile = File(...)):
+    image_data = await image.read()
+    try:
+        # Chama a função removeBackground()
+        image_removed_path = removeBackground(image_data)
+    except Exception as e:
+        return {'error': str(e)}
 
-@app.post("/path")
-async def demo_post(inp: Msg):
-    return {"message": inp.msg.upper()}
+    image_removed_filename = os.path.basename(image_removed_path)
+    url_path = app.url_path_for('output_image', path=image_removed_filename)
+    image_url = str(request.base_url.include_query_params()).replace(request.url.path, '') + url_path
+    return {'image_url': image_url}
 
-
-@app.get("/path/{path_id}")
-async def demo_get_path_id(path_id: int):
-    return {"message": f"This is /path/{path_id} endpoint, use post request to retrieve result"}
+@app.get('/output/{path:path}')
+def output_image(path):
+    return FileResponse(os.path.join('in', path), media_type='image/jpeg')
